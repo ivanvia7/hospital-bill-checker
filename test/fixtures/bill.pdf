@@ -1,0 +1,46 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 972 >>
+stream
+BT /F1 9 Tf 40 760 Td 14 TL
+(MOUNT EXAMPLE HOSPITAL  -  ITEMIZED STATEMENT) Tj T*
+(450 First Avenue, New York, NY 10016) Tj T*
+(Account 4417-22981    Statement date 10/09/2026) Tj T*
+(DATE        CODE    DESCRIPTION                       QTY    AMOUNT) Tj T*
+(10/02/2026  70551   MRI BRAIN W/O CONTRAST              1    $3,250.00) Tj T*
+(10/02/2026  99285   EMERGENCY DEPT VISIT LVL 5          1    $2,840.50) Tj T*
+(10/02/2026  80053   COMPREHENSIVE METABOLIC PANEL       1      $412.00) Tj T*
+(10/02/2026  85025   CBC W/AUTO DIFF                     2      $373.50) Tj T*
+(10/02/2026  36415   ROUTINE VENIPUNCTURE                2       $90.00) Tj T*
+(10/02/2026  J7121   DEXTROSE 5% LACT RINGERS 1000 ML    1       $63.00) Tj T*
+(TOTAL CHARGES                                                $7,029.00) Tj T*
+(Insurance paid 10/08/2026                                   -$4,100.00) Tj T*
+(PATIENT BALANCE DUE                                          $2,929.00) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001264 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1332
+%%EOF

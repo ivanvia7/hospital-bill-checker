@@ -2,11 +2,12 @@ import { createReadStream, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
+import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
-import { findBillPrices, readBill } from './bill.ts';
+import { findBillPrices, readBill, readPdfBill } from './bill.ts';
 import { BLOCKED_STATUS, downloadInBrowser, readTextInBrowser } from './browser.ts';
 
-const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv> --hospital <domain> [--location <name>]';
+const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv|bill.pdf> --hospital <domain> [--location <name>]';
 const PRICE_INDEX_FILE = 'cms-hpt.txt';
 const LOCATION_FIELD = 'location-name:';
 const FILE_FIELD = 'mrf-url:';
@@ -55,8 +56,29 @@ async function printPriceFiles(hospitalDomain: string) {
     }
 }
 
+// Reading a PDF is a guess, so the user sees the lines found and confirms them first.
+async function readBillFile(billPath: string) {
+    if (!billPath.toLowerCase().endsWith('.pdf')) {
+        return readBill(billPath);
+    }
+
+    const bill = await readPdfBill(billPath);
+    console.table(bill);
+    const prompt = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await prompt.question(`Found ${bill.length} lines in the PDF. Check these against the hospital? [y/N] `);
+    prompt.close();
+
+    return answer.trim().toLowerCase() === 'y' ? bill : [];
+}
+
 async function checkBill(billPath: string, hospitalDomain: string, locationName: string) {
-    const bill = await readBill(billPath);
+    const bill = await readBillFile(billPath);
+
+    if (bill.length === 0) {
+        console.error('No bill lines to check');
+        return;
+    }
+
     const files = await readPriceFiles(hospitalDomain);
     const file = files.find((candidate) => candidate.location.toLowerCase().includes(locationName.toLowerCase()));
 

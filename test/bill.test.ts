@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findBillPrices, readBill } from '../src/bill.ts';
+import { findBillPrices, readBill, readPdfBill } from '../src/bill.ts';
 
 // bill.csv = a made-up 5-line bill: brain MRI, ER visit, metabolic panel, blood count, blood draw.
 const BILL_CSV = 'test/fixtures/bill.csv';
@@ -28,4 +28,14 @@ test('keeps only hospital prices whose code is on the bill', async () => {
     assert.equal(tallPrices.length, 4);
     assert.equal(jsonPrices.length, 2);
     assert.deepEqual(jsonPrices.map((price) => price.description), ['MRI of brain (no contrast)', 'Inguinal hernia repair']);
+});
+
+test('finds every charge line in a text PDF bill', async () => {
+    // bill.pdf = the 5 lines of bill.csv plus J7121 dextrose; address, total and insurance lines must not match.
+    const lines = await readPdfBill('test/fixtures/bill.pdf');
+    const csvLines = await readBill(BILL_CSV);
+
+    assert.equal(lines.length, 6);
+    assert.deepEqual(lines.slice(0, 5), csvLines);
+    assert.deepEqual(lines[5], { code: 'J7121', amount: 63, qty: 1 });
 });
