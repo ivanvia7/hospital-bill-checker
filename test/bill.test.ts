@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findBillPrices, readBill, readPdfBill } from '../src/bill.ts';
+import { compareLine, findBillPrices, readBill, readPdfBill } from '../src/bill.ts';
 
 // bill.csv = a made-up 5-line bill: brain MRI, ER visit, metabolic panel, blood count, blood draw.
 const BILL_CSV = 'test/fixtures/bill.csv';
@@ -38,4 +38,15 @@ test('finds every charge line in a text PDF bill', async () => {
     assert.equal(lines.length, 6);
     assert.deepEqual(lines.slice(0, 5), csvLines);
     assert.deepEqual(lines[5], { code: 'J7121', amount: 63, qty: 1 });
+});
+
+test('flags a line billed above both the cash price and the plan rate', async () => {
+    // Tall MRI rows: cash $1,080, Platform PPO $400, Region HMO $250.
+    const prices = await findBillPrices(createReadStream('test/fixtures/tall.csv'), false, new Set(['70551']));
+    const overcharged = compareLine({ code: '70551', amount: 3250, qty: 1 }, prices, 'platform');
+    const fair = compareLine({ code: '70551', amount: 900, qty: 1 }, prices, 'platform');
+
+    assert.deepEqual([overcharged.cash, overcharged.plan, overcharged.flag], [1080, 400, 'ABOVE BOTH']);
+    assert.equal(fair.flag, '');
+    assert.equal(compareLine({ code: '70551', amount: 3250, qty: 1 }, prices, 'region').plan, 250);
 });

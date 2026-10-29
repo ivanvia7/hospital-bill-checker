@@ -4,10 +4,10 @@ import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
-import { findBillPrices, readBill, readPdfBill } from './bill.ts';
+import { compareLine, findBillPrices, readBill, readPdfBill } from './bill.ts';
 import { BLOCKED_STATUS, downloadInBrowser, readTextInBrowser } from './browser.ts';
 
-const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv|bill.pdf> --hospital <domain> [--location <name>]';
+const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv|bill.pdf> --hospital <domain> [--location <name>] [--payer <name and plan>]';
 const PRICE_INDEX_FILE = 'cms-hpt.txt';
 const LOCATION_FIELD = 'location-name:';
 const FILE_FIELD = 'mrf-url:';
@@ -22,6 +22,7 @@ const { positionals, values } = parseArgs({
         bill: { type: 'string' },
         hospital: { type: 'string' },
         location: { type: 'string', default: '' },
+        payer: { type: 'string', default: '' },
     },
 });
 const [command, domain] = positionals;
@@ -71,7 +72,7 @@ async function readBillFile(billPath: string) {
     return answer.trim().toLowerCase() === 'y' ? bill : [];
 }
 
-async function checkBill(billPath: string, hospitalDomain: string, locationName: string) {
+async function checkBill(billPath: string, hospitalDomain: string, locationName: string, payerName: string) {
     const bill = await readBillFile(billPath);
 
     if (bill.length === 0) {
@@ -107,20 +108,7 @@ async function checkBill(billPath: string, hospitalDomain: string, locationName:
         throw new Error(`${file.url} answered ${response.status}`);
     }
 
-    console.table(bill.map((line) => {
-        const matches = prices.filter((price) => price.codes.some(({ code }) => code === line.code));
-        // Hospitals often list a code twice; the row with a cash price is the hospital's own fee.
-        const price = matches.find((match) => match.cash !== null) ?? matches[0];
-
-        return {
-            code: line.code,
-            qty: line.qty,
-            billed: line.amount,
-            hospital: price?.description ?? 'not in file',
-            gross: price?.gross ?? '',
-            cash: price?.cash ?? '',
-        };
-    }));
+    console.table(bill.map((line) => compareLine(line, prices, payerName)));
 }
 
 if (values.version) {
@@ -128,7 +116,7 @@ if (values.version) {
 } else if (command === 'find' && domain) {
     await printPriceFiles(domain);
 } else if (command === 'check' && values.bill && values.hospital) {
-    await checkBill(values.bill, values.hospital, values.location);
+    await checkBill(values.bill, values.hospital, values.location, values.payer);
 } else {
     console.log(USAGE);
     process.exitCode = 1;

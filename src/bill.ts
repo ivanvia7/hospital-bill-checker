@@ -6,6 +6,8 @@ import { extractText, getDocumentProxy } from 'unpdf';
 import { readCodes, readCsvRows, readPrice } from './csv.ts';
 import { readJsonItems, readJsonPrices } from './json.ts';
 
+type Price = Awaited<ReturnType<typeof findBillPrices>>[number];
+
 // CPT (5 digits) or HCPCS (letter + 4 digits), then quantity and line total at line end.
 const PDF_BILL_LINE = /\b([A-Z]\d{4}|\d{5})\b.*\s(\d{1,3})\s+\$?([\d,]+\.\d{2})$/;
 
@@ -63,4 +65,31 @@ export async function findBillPrices(input: Readable, isJson: boolean, billCodes
     }
 
     return matches;
+}
+
+function highest(values: (number | null)[]) {
+    const known = values.filter((value) => value !== null);
+
+    return known.length > 0 ? Math.max(...known) : null;
+}
+
+// Takes the highest listed price, so a flag never rests on a cheaper row.
+export function compareLine(line: { code: string; amount: number; qty: number }, prices: Price[], payerName: string) {
+    const matches = prices.filter((price) => price.codes.some(({ code }) => code === line.code));
+    const payer = payerName.toLowerCase();
+    const allRates = matches.flatMap((price) => price.payers);
+    const yourRates = allRates.filter((rate) => payer && `${rate.payer} ${rate.plan}`.toLowerCase().includes(payer));
+    const cash = highest(matches.map((price) => price.cash));
+    const plan = highest(yourRates.map((rate) => rate.dollar));
+    const limits = [cash, plan].filter((limit) => limit !== null);
+
+    return {
+        code: line.code,
+        qty: line.qty,
+        billed: line.amount,
+        hospital: matches[0]?.description ?? 'not in file',
+        cash,
+        plan,
+        flag: limits.length > 0 && limits.every((limit) => line.amount > limit) ? 'ABOVE BOTH' : '',
+    };
 }
