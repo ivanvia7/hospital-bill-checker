@@ -9,7 +9,7 @@ const LINE_BREAK = /\r?\n/;
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const [command, domain] = process.argv.slice(2);
 
-const findPriceFiles = async (hospitalDomain: string) => {
+async function findPriceFiles(hospitalDomain: string) {
     const indexUrl = new URL(PRICE_INDEX_FILE, `https://${hospitalDomain}`);
     const response = await fetch(indexUrl);
 
@@ -23,7 +23,7 @@ const findPriceFiles = async (hospitalDomain: string) => {
         .filter((line) => INDEX_FIELDS.some((field) => line.startsWith(field)));
 
     console.log(priceFileLines.join('\n'));
-};
+}
 
 if (command === '--version') {
     console.log(pkg.version);
