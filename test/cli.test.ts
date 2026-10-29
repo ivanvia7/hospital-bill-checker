@@ -23,3 +23,11 @@ test('refuses a price file that is not CSV or JSON', async () => {
         stderr: 'test/fixtures/bill.pdf: expected a .csv or .json price file\n',
     });
 });
+
+test('names the domain when the hospital website cannot be reached', async () => {
+    // .invalid is reserved and never resolves, so this needs no network.
+    await assert.rejects(run(process.execPath, ['src/cli.ts', 'find', 'no-such-hospital.invalid']), {
+        code: 1,
+        stderr: "Could not reach no-such-hospital.invalid. Check the spelling of the hospital's website\n",
+    });
+});

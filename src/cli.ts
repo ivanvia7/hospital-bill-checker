@@ -33,7 +33,14 @@ const hasPriceSource = Boolean(values.hospital || values.file);
 // In cms-hpt.txt each location-name line comes before that location's mrf-url line.
 async function readPriceFiles(hospitalDomain: string) {
     const indexUrl = new URL(PRICE_INDEX_FILE, `https://${hospitalDomain}`);
-    const response = await fetch(indexUrl);
+    let response;
+
+    // Node's own message for a mistyped domain is only "fetch failed".
+    try {
+        response = await fetch(indexUrl);
+    } catch (error) {
+        throw new Error(`Could not reach ${hospitalDomain}. Check the spelling of the hospital's website`, { cause: error });
+    }
 
     if (!response.ok && response.status !== BLOCKED_STATUS) {
         throw new Error(`${indexUrl} answered ${response.status}`);
