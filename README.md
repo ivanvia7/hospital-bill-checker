@@ -6,7 +6,7 @@ US hospitals must post every price they charge in one public file.
 This tool finds that file, reads it, and puts each line of your bill next to the hospital's cash price and your plan's rate.
 
 ```
-$ npx hospital-bill-checker check --bill bill.csv --hospital nyulangone.org --location Tisch --payer aetna
+$ node src/cli.ts check --bill bill.csv --hospital nyulangone.org --location Tisch --payer aetna
 Reading NYU Langone Tisch Hospital: https://standard-charges-prod.s3.amazonaws.com/pricing_files/133971298-1801992631_nyu-langone-tisch_standardcharges.csv
 ┌─────────┬─────────┬─────┬────────┬────────────────────────────────┬─────────┬─────────┬──────────────┐
 │ (index) │ code    │ qty │ billed │ hospital                       │ cash    │ plan    │ flag         │
@@ -24,12 +24,19 @@ That run streamed a 482 MB price file in 40 seconds.
 
 ## Quick start
 
-Needs Node 22.18 or newer.
+Needs Node 22.18 or newer, which runs the TypeScript files directly.
 
 ```sh
-npx hospital-bill-checker find nyulangone.org
-npx hospital-bill-checker check --bill bill.pdf --hospital nyulangone.org --location Tisch
-npx hospital-bill-checker check --bill bill.csv --file prices.csv --payer "blue cross"
+git clone https://github.com/ivanvia7/hospital-bill-checker
+cd hospital-bill-checker && npm install
+node src/cli.ts check --bill bill.pdf --hospital nyulangone.org --location Tisch
+```
+
+More examples:
+
+```sh
+node src/cli.ts find nyulangone.org
+node src/cli.ts check --bill bill.csv --file prices.csv --payer "blue cross"
 ```
 
 ## Commands
