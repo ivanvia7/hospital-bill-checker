@@ -6,7 +6,8 @@
     "types": ["node"],
     "noEmit": true,
     "erasableSyntaxOnly": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true
   },
   "include": ["src", "test"]
 }
