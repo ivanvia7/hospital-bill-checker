@@ -2,6 +2,8 @@
 
 Check your hospital bill line by line against the hospital's own posted prices.
 
+**Use it in your browser:** https://ivanvia7.github.io/hospital-bill-checker/ Your files stay on your computer.
+
 US hospitals must post every price they charge in one public file.
 This tool finds that file, reads it, and puts each line of your bill next to the hospital's cash price and your plan's rate.
 
@@ -19,7 +21,7 @@ Reading NYU Langone Tisch Hospital: https://standard-charges-prod.s3.amazonaws.c
 └─────────┴─────────┴─────┴────────┴────────────────────────────────┴─────────┴─────────┴──────────────┘
 ```
 
-The metabolic panel was billed at $412. The hospital's own file lists $12.67 cash and at most $325.51 for an Aetna plan.
+On this sample bill the metabolic panel is billed at $412. The hospital's own file lists $12.67 cash and at most $325.51 for an Aetna plan.
 That run streamed a 482 MB price file in 40 seconds.
 
 ## Quick start
