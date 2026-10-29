@@ -1,10 +1,8 @@
-import { createReadStream } from 'node:fs';
+import type { Readable } from 'node:stream';
 import chain from 'stream-chain';
 import { parser } from 'stream-json';
 import { pick } from 'stream-json/filters/pick.js';
 import { streamArray } from 'stream-json/streamers/stream-array.js';
-
-const ITEMS_FIELD = 'standard_charge_information';
 
 // One item of standard_charge_information, only the fields this tool reads.
 type JsonItem = {
@@ -18,9 +16,11 @@ type JsonItem = {
     }[];
 };
 
-export async function* readJsonItems(filePath: string): AsyncGenerator<JsonItem> {
+const ITEMS_FIELD = 'standard_charge_information';
+
+export async function* readJsonItems(input: Readable): AsyncGenerator<JsonItem> {
     const pipeline = chain([
-        createReadStream(filePath),
+        input,
         parser(),
         pick({ filter: ITEMS_FIELD }),
         streamArray(),

@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readJsonItems, readJsonPrices } from '../src/json.ts';
@@ -11,7 +12,7 @@ const JSON_DOLLAR_RATES = 29;
 test('reads every item from the JSON file', async () => {
     const items = [];
 
-    for await (const item of readJsonItems(JSON_FILE)) {
+    for await (const item of readJsonItems(createReadStream(JSON_FILE))) {
         items.push(item);
     }
 
@@ -22,7 +23,7 @@ test('reads every item from the JSON file', async () => {
 test('turns a JSON item into the same price shape as the CSV', async () => {
     const prices = [];
 
-    for await (const item of readJsonItems(JSON_FILE)) {
+    for await (const item of readJsonItems(createReadStream(JSON_FILE))) {
         prices.push(...readJsonPrices(item));
     }
 

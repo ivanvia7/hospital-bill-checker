@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import type { Readable } from 'node:stream';
 import { parse } from 'csv-parse';
 
 const COLUMN_NAMES_LINE = 3;
@@ -11,10 +11,10 @@ function cleanColumnNames(names: string[]) {
     return names.map((name) => name.replace(SPACES_AROUND_PIPE, '|'));
 }
 
-export function readCsvRows(filePath: string) {
+export function readCsvRows(input: Readable) {
     const csvParser = parse({ from_line: COLUMN_NAMES_LINE, columns: cleanColumnNames, bom: true });
 
-    return createReadStream(filePath).pipe(csvParser);
+    return input.pipe(csvParser);
 }
 
 // Codes sit in slots code|1..code|n, each with its type in code|n|type; empty slots are skipped.
