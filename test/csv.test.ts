@@ -6,7 +6,7 @@ import { readCodes, readCsvRows, readPrice } from '../src/csv.ts';
 // wide.csv = first 13 lines of the NYU Tisch file: 2 hospital-info lines, 1 column-name line, 10 prices.
 const WIDE_CSV = 'test/fixtures/wide.csv';
 const WIDE_PRICE_ROWS = 10;
-// Line 4 of wide.csv: J7121 = "5% DEXTROSE IN LAC RINGERS", gross $63, cash $11.97.
+// Line 4 of wide.csv: J7121 = "5% DEXTROSE IN LAC RINGERS", cash $11.97.
 const FIRST_ROW_CODE = 'J7121';
 
 // tall.csv = CMS V3 tall example: 2 hospital-info lines, 1 column-name line, 45 prices.
@@ -65,23 +65,19 @@ test('turns a row into one price shape', async () => {
     assert.deepEqual(widePrice, {
         codes: readCodes(wideRow),
         description: '5% DEXTROSE IN LAC RINGERS',
-        setting: 'inpatient',
-        gross: 63,
         cash: 11.97,
     });
-    assert.equal(readPrice(tallRow).gross, 1200);
     assert.equal(readPrice(tallRow).cash, 1080);
-    // Tall line 6, hernia repair, has empty gross and cash cells: no price, not $0.
-    assert.equal(readPrice(tallRowNoPrice).gross, null);
+    // Tall line 6, hernia repair, has an empty cash cell: no price, not $0.
     assert.equal(readPrice(tallRowNoPrice).cash, null);
 });
 
 test('reads a text cell like N/A as no price', () => {
-    const row = { 'code|1': '70551', description: 'MRI', setting: 'outpatient', 'standard_charge|gross': 'N/A', 'standard_charge|discounted_cash': 'N/A' };
+    const row = { 'code|1': '70551', description: 'MRI', 'standard_charge|discounted_cash': 'N/A' };
     const wide = readPrice({ ...row, 'standard_charge|Aetna|HMO|negotiated_dollar': 'N/A' });
     const tall = readPrice({ ...row, payer_name: 'Aetna', plan_name: 'HMO', 'standard_charge|negotiated_dollar': 'N/A' });
 
-    assert.deepEqual([wide.gross, wide.cash, wide.payers, tall.payers], [null, null, [], []]);
+    assert.deepEqual([wide.cash, wide.payers, tall.payers], [null, [], []]);
 });
 
 test('reads one payer per filled plan column in the wide CSV', async () => {

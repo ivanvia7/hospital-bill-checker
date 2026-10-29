@@ -71,8 +71,6 @@ export function readPrice(row: Record<string, string>) {
     return {
         codes: readCodes(row),
         description: row['description'],
-        setting: row['setting'].toLowerCase(),
-        gross: readDollar(row['standard_charge|gross']),
         cash: readDollar(row['standard_charge|discounted_cash']),
         payers: TALL_PAYER_COLUMN in row ? readTallPayers(row) : readWidePayers(row),
     };

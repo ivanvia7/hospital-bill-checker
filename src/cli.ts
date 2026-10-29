@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createReadStream, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { dirname, extname } from 'node:path';
@@ -102,7 +103,8 @@ async function findHospitalPrices(hospitalDomain: string, locationName: string, 
 
     if (!file) {
         const names = matches.map((match) => match.location).join('; ');
-        throw new Error(`${hospitalDomain} lists ${matches.length} locations matching "${locationName}": ${names || 'none'}. Pass one with --location`);
+        const matching = locationName ? ` matching "${locationName}"` : '';
+        throw new Error(`${hospitalDomain} lists ${matches.length} locations${matching}: ${names || 'none'}. Pass one with --location`);
     }
 
     console.error(`Reading ${file.location}: ${file.url}`);

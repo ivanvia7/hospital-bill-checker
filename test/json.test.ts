@@ -32,8 +32,6 @@ test('turns a JSON item into the same price shape as the CSV', async () => {
     assert.deepEqual(prices[0], {
         codes: [{ code: '611', type: 'RC' }, { code: '70551', type: 'CPT' }],
         description: 'MRI of brain (no contrast)',
-        setting: 'outpatient',
-        gross: 1200,
         cash: 1080,
         payers: [
             { payer: 'Platform Health Insurance', plan: 'PPO', dollar: 400 },

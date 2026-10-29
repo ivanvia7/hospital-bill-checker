@@ -9,8 +9,6 @@ type JsonItem = {
     description: string;
     code_information: { code: string; type: string }[];
     standard_charges: {
-        setting: string;
-        gross_charge?: number;
         discounted_cash?: number;
         payers_information?: { payer_name: string; plan_name: string; standard_charge_dollar?: number }[];
     }[];
@@ -31,13 +29,11 @@ export async function* readJsonItems(input: Readable): AsyncGenerator<JsonItem> 
     }
 }
 
-// One item can list inpatient and outpatient prices, so it gives one price per setting.
+// One item can list inpatient and outpatient prices, so it gives one price per charge.
 export function readJsonPrices(item: JsonItem) {
     return item.standard_charges.map((charge) => ({
         codes: item.code_information,
         description: item.description,
-        setting: charge.setting.toLowerCase(),
-        gross: charge.gross_charge ?? null,
         cash: charge.discounted_cash ?? null,
         payers: (charge.payers_information ?? []).flatMap((payer) =>
             payer.standard_charge_dollar === undefined

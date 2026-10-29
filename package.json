@@ -2,13 +2,20 @@
   "name": "hospital-bill-checker",
   "version": "1.0.0",
   "description": "Check your hospital bill line by line against the hospital's own posted prices",
-  "main": "index.js",
+  "bin": {
+    "hospital-bill-checker": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "test": "node --test 'test/**/*.test.ts'"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -20,6 +27,7 @@
   "dependencies": {
     "camoufox": "^0.5.8",
     "csv-parse": "^7.0.3",
+    "stream-chain": "^4.4.1",
     "stream-json": "^3.8.0",
     "unpdf": "^1.9.1"
   }
