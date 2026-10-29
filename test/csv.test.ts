@@ -59,19 +59,29 @@ test('turns a row into one price shape', async () => {
     const [wideRow] = await readCsvRows(createReadStream(WIDE_CSV)).toArray();
     const [tallRow, , tallRowNoPrice] = await readCsvRows(createReadStream(TALL_CSV)).toArray();
 
-    assert.deepEqual(readPrice(wideRow), {
+    // payers has its own test below.
+    const { payers, ...widePrice } = readPrice(wideRow);
+
+    assert.deepEqual(widePrice, {
         codes: readCodes(wideRow),
         description: '5% DEXTROSE IN LAC RINGERS',
         setting: 'inpatient',
         gross: 63,
         cash: 11.97,
-        payers: readPrice(wideRow).payers,
     });
     assert.equal(readPrice(tallRow).gross, 1200);
     assert.equal(readPrice(tallRow).cash, 1080);
     // Tall line 6, hernia repair, has empty gross and cash cells: no price, not $0.
     assert.equal(readPrice(tallRowNoPrice).gross, null);
     assert.equal(readPrice(tallRowNoPrice).cash, null);
+});
+
+test('reads a text cell like N/A as no price', () => {
+    const row = { 'code|1': '70551', description: 'MRI', setting: 'outpatient', 'standard_charge|gross': 'N/A', 'standard_charge|discounted_cash': 'N/A' };
+    const wide = readPrice({ ...row, 'standard_charge|Aetna|HMO|negotiated_dollar': 'N/A' });
+    const tall = readPrice({ ...row, payer_name: 'Aetna', plan_name: 'HMO', 'standard_charge|negotiated_dollar': 'N/A' });
+
+    assert.deepEqual([wide.gross, wide.cash, wide.payers, tall.payers], [null, null, [], []]);
 });
 
 test('reads one payer per filled plan column in the wide CSV', async () => {

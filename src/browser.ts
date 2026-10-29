@@ -5,6 +5,7 @@ import { Camoufox } from 'camoufox';
 
 // Some hospitals sit behind Cloudflare, which answers 403 to plain fetch but lets a real browser through.
 export const BLOCKED_STATUS = 403;
+const DOWNLOAD_STARTED = 'Download is starting';
 
 export async function readTextInBrowser(url: URL) {
     const browser = await Camoufox({ headless: true });
@@ -29,10 +30,16 @@ export async function downloadInBrowser(url: URL) {
 
     try {
         const page = await browser.newPage();
-        const downloadStarted = page.waitForEvent('download');
-        // Firefox aborts the navigation once the download begins; that error is expected.
-        await page.goto(url.href).catch(() => null);
-        const download = await downloadStarted;
+        // Firefox aborts the navigation once the download begins; only that error is expected.
+        // Promise.all stops at a real goto error, such as DNS, instead of waiting out the download timeout.
+        const [download] = await Promise.all([
+            page.waitForEvent('download'),
+            page.goto(url.href).catch((error: Error) => {
+                if (!error.message.includes(DOWNLOAD_STARTED)) {
+                    throw error;
+                }
+            }),
+        ]);
         const folder = await mkdtemp(join(tmpdir(), 'hospital-bill-checker-'));
         const filePath = join(folder, download.suggestedFilename());
 

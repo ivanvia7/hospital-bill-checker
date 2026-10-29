@@ -1,6 +1,6 @@
 import { createReadStream, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, extname } from 'node:path';
 import { Readable } from 'node:stream';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
@@ -46,7 +46,14 @@ async function readPriceFiles(hospitalDomain: string) {
         if (line.startsWith(LOCATION_FIELD)) {
             location = line.slice(LOCATION_FIELD.length).trim();
         } else if (line.startsWith(FILE_FIELD)) {
-            files.push({ location, url: new URL(line.slice(FILE_FIELD.length).trim()) });
+            const url = line.slice(FILE_FIELD.length).trim();
+
+            // One empty or relative mrf-url must not hide the other locations.
+            if (URL.canParse(url)) {
+                files.push({ location, url: new URL(url) });
+            } else {
+                console.error(`Skipping ${location}: "${url}" is not a full URL`);
+            }
         }
     }
 
@@ -74,17 +81,28 @@ async function readBillFile(billPath: string) {
     return answer.trim().toLowerCase() === 'y' ? bill : [];
 }
 
+// A .zip or .xlsx read as CSV would match nothing and still print a clean-looking table.
 function readFormat(path: string) {
-    return path.toLowerCase().endsWith('.json') ? 'json' : 'csv';
+    const extension = extname(path).toLowerCase();
+
+    if (extension !== '.csv' && extension !== '.json') {
+        throw new Error(`${path}: expected a .csv or .json price file`);
+    }
+
+    return extension === '.json' ? 'json' : 'csv';
 }
 
 // Downloads the price file listed for the location; falls back to a browser when the site blocks plain requests.
 async function findHospitalPrices(hospitalDomain: string, locationName: string, billCodes: Set<string>) {
     const files = await readPriceFiles(hospitalDomain);
-    const file = files.find((candidate) => candidate.location.toLowerCase().includes(locationName.toLowerCase()));
+    const name = locationName.toLowerCase();
+    const matches = files.filter((candidate) => candidate.location.toLowerCase().includes(name));
+    // "Stanford Health Care" is also part of "Stanford Health Care Tri-Valley", so an exact name wins.
+    const file = files.find((candidate) => candidate.location.toLowerCase() === name) ?? (matches.length === 1 ? matches[0] : undefined);
 
     if (!file) {
-        throw new Error(`${hospitalDomain} lists no location matching "${locationName}"`);
+        const names = matches.map((match) => match.location).join('; ');
+        throw new Error(`${hospitalDomain} lists ${matches.length} locations matching "${locationName}": ${names || 'none'}. Pass one with --location`);
     }
 
     console.error(`Reading ${file.location}: ${file.url}`);
@@ -126,13 +144,19 @@ async function checkBill(billPath: string, payerName: string, source: { file?: s
     console.table(bill.map((line) => compareLine(line, prices, payerName)));
 }
 
-if (values.version) {
-    console.log(pkg.version);
-} else if (command === 'find' && domain) {
-    await printPriceFiles(domain);
-} else if (command === 'check' && values.bill && hasPriceSource) {
-    await checkBill(values.bill, values.payer, values);
-} else {
-    console.log(USAGE);
+// A wrong path, location or 404 prints one line, not a stack.
+try {
+    if (values.version) {
+        console.log(pkg.version);
+    } else if (command === 'find' && domain) {
+        await printPriceFiles(domain);
+    } else if (command === 'check' && values.bill && hasPriceSource) {
+        await checkBill(values.bill, values.payer, values);
+    } else {
+        console.log(USAGE);
+        process.exitCode = 1;
+    }
+} catch (error) {
+    console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
 }

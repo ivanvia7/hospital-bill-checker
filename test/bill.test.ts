@@ -6,7 +6,7 @@ import { compareLine, findBillPrices, readBill, readPdfBill } from '../src/bill.
 // bill.csv = a made-up 5-line bill: brain MRI, ER visit, metabolic panel, blood count, blood draw.
 const BILL_CSV = 'test/fixtures/bill.csv';
 const BILL_LINES = 5;
-// 3,250 + 2,840.50 + 412 + 2 x 186.75 + 2 x 45.
+// $3,250 (written with $ and comma) + 2,840.50 + 412 + 2 x 186.75 + 2 x 45.
 const BILL_TOTAL = 6966;
 
 test('reads every line of the bill', async () => {
@@ -15,6 +15,12 @@ test('reads every line of the bill', async () => {
     assert.equal(lines.length, BILL_LINES);
     assert.deepEqual(lines[0], { code: '70551', amount: 3250, qty: 1 });
     assert.equal(lines.reduce((sum, line) => sum + line.amount * line.qty, 0), BILL_TOTAL);
+});
+
+test('passes a missing file error to the caller', async () => {
+    await assert.rejects(readBill('test/fixtures/missing.csv'), { code: 'ENOENT' });
+    await assert.rejects(findBillPrices(createReadStream('test/fixtures/missing.csv'), 'csv', new Set()), { code: 'ENOENT' });
+    await assert.rejects(findBillPrices(createReadStream('test/fixtures/missing.json'), 'json', new Set()), { code: 'ENOENT' });
 });
 
 test('keeps only hospital prices whose code is on the bill', async () => {
@@ -45,6 +51,13 @@ test('counts 1 unit per line when the PDF has no quantity column', async () => {
     const lines = await readPdfBill('test/fixtures/bill-no-qty.pdf');
 
     assert.deepEqual(lines, [{ code: '99213', amount: 310, qty: 1 }, { code: '36415', amount: 45, qty: 1 }]);
+});
+
+test('reads a UNITS header as the quantity column and skips 0-unit lines', async () => {
+    // bill-units.pdf: 80053 x1, 85025 x0 at $0.00 (a voided line), 36415 x2 at $90.00.
+    const lines = await readPdfBill('test/fixtures/bill-units.pdf');
+
+    assert.deepEqual(lines, [{ code: '80053', amount: 412, qty: 1 }, { code: '36415', amount: 45, qty: 2 }]);
 });
 
 test('flags a line billed above both the cash price and the plan rate', async () => {

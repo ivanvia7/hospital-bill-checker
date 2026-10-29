@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import type { Readable } from 'node:stream';
+import { pipeline, type Readable } from 'node:stream';
 import { parse } from 'csv-parse';
 import { extractText, getDocumentProxy } from 'unpdf';
 import { readCodes, readCsvRows, readPrice } from './csv.ts';
@@ -9,18 +9,21 @@ import { readJsonItems, readJsonPrices } from './json.ts';
 type Price = Awaited<ReturnType<typeof findBillPrices>>[number];
 
 // CPT (5 digits) or HCPCS (letter + 4 digits), then quantity and line total at line end.
-const PDF_LINE_WITH_QTY = /\b([A-Z]\d{4}|\d{5})\b.*\s(\d{1,3})\s+\$?([\d,]+\.\d{2})$/;
+// Quantity starts at 1: a voided line with qty 0 is skipped, not divided by zero.
+const PDF_LINE_WITH_QTY = /\b([A-Z]\d{4}|\d{5})\b.*\s([1-9]\d{0,2})\s+\$?([\d,]+\.\d{2})$/;
 // No quantity: "LVL 3 $310.00" is not 3 units; the empty () keeps the total in slot 3.
 const PDF_LINE_NO_QTY = /\b([A-Z]\d{4}|\d{5})\b.*()\s\$?([\d,]+\.\d{2})$/;
-// A QTY header means every charge line has a quantity column.
-const QTY_HEADER = /\bQTY\b/i;
+// A QTY, UNITS or QUANTITY header means every charge line has a quantity column.
+const QTY_HEADER = /\b(QTY|UNITS|QUANTITY)\b/i;
+// Bills write amounts as "$3,250.00"; Number() needs "3250.00".
+const MONEY_MARKS = /[$,]/g;
 
 export async function readBill(filePath: string) {
     const lines = [];
-    const rows = createReadStream(filePath).pipe(parse({ columns: true, bom: true, trim: true }));
+    const rows = pipeline(createReadStream(filePath), parse({ columns: true, bom: true, trim: true }), () => {});
 
     for await (const row of rows) {
-        lines.push({ code: row.code, amount: Number(row.amount), qty: Number(row.qty) });
+        lines.push({ code: row.code, amount: Number(row.amount.replace(MONEY_MARKS, '')), qty: Number(row.qty) });
     }
 
     return lines;
@@ -40,7 +43,7 @@ export async function readPdfBill(filePath: string) {
         if (match) {
             const qty = Number(match[2] || 1);
             // PDF shows the line total; the hospital file prices one unit.
-            lines.push({ code: match[1], amount: Number(match[3].replaceAll(',', '')) / qty, qty });
+            lines.push({ code: match[1], amount: Number(match[3].replace(MONEY_MARKS, '')) / qty, qty });
         }
     }
 
