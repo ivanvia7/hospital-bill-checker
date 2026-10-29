@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compareLine, findBillPrices, readBill, readPdfBill } from '../src/bill.ts';
@@ -10,7 +11,7 @@ const BILL_LINES = 5;
 const BILL_TOTAL = 6966;
 
 test('reads every line of the bill', async () => {
-    const lines = await readBill(BILL_CSV);
+    const lines = await readBill(createReadStream(BILL_CSV));
 
     assert.equal(lines.length, BILL_LINES);
     assert.deepEqual(lines[0], { code: '70551', amount: 3250, qty: 1 });
@@ -18,7 +19,7 @@ test('reads every line of the bill', async () => {
 });
 
 test('passes a missing file error to the caller', async () => {
-    await assert.rejects(readBill('test/fixtures/missing.csv'), { code: 'ENOENT' });
+    await assert.rejects(readBill(createReadStream('test/fixtures/missing.csv')), { code: 'ENOENT' });
     await assert.rejects(findBillPrices(createReadStream('test/fixtures/missing.csv'), 'csv', new Set()), { code: 'ENOENT' });
     await assert.rejects(findBillPrices(createReadStream('test/fixtures/missing.json'), 'json', new Set()), { code: 'ENOENT' });
 });
@@ -38,8 +39,8 @@ test('keeps only hospital prices whose code is on the bill', async () => {
 
 test('finds every charge line in a text PDF bill', async () => {
     // bill.pdf = the 5 lines of bill.csv plus J7121; address, total and insurance lines must not match.
-    const lines = await readPdfBill('test/fixtures/bill.pdf');
-    const csvLines = await readBill(BILL_CSV);
+    const lines = await readPdfBill(new Uint8Array(await readFile('test/fixtures/bill.pdf')));
+    const csvLines = await readBill(createReadStream(BILL_CSV));
 
     assert.equal(lines.length, 6);
     assert.deepEqual(lines.slice(0, 5), csvLines);
@@ -48,14 +49,14 @@ test('finds every charge line in a text PDF bill', async () => {
 
 test('counts 1 unit per line when the PDF has no quantity column', async () => {
     // 99213 ends in "LVL 3", which must not be read as 3 units.
-    const lines = await readPdfBill('test/fixtures/bill-no-qty.pdf');
+    const lines = await readPdfBill(new Uint8Array(await readFile('test/fixtures/bill-no-qty.pdf')));
 
     assert.deepEqual(lines, [{ code: '99213', amount: 310, qty: 1 }, { code: '36415', amount: 45, qty: 1 }]);
 });
 
 test('reads a UNITS header as the quantity column and skips 0-unit lines', async () => {
     // bill-units.pdf: 80053 x1, 85025 x0 at $0.00 (a voided line), 36415 x2 at $90.00.
-    const lines = await readPdfBill('test/fixtures/bill-units.pdf');
+    const lines = await readPdfBill(new Uint8Array(await readFile('test/fixtures/bill-units.pdf')));
 
     assert.deepEqual(lines, [{ code: '80053', amount: 412, qty: 1 }, { code: '36415', amount: 45, qty: 2 }]);
 });

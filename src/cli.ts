@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createReadStream, readFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { dirname, extname } from 'node:path';
 import { Readable } from 'node:stream';
 import { createInterface } from 'node:readline/promises';
@@ -70,10 +70,10 @@ async function printPriceFiles(hospitalDomain: string) {
 // Reading a PDF is a guess, so the user sees the lines found and confirms them first.
 async function readBillFile(billPath: string) {
     if (!billPath.toLowerCase().endsWith('.pdf')) {
-        return readBill(billPath);
+        return readBill(createReadStream(billPath));
     }
 
-    const bill = await readPdfBill(billPath);
+    const bill = await readPdfBill(new Uint8Array(await readFile(billPath)));
     console.table(bill);
     const prompt = createInterface({ input: process.stdin, output: process.stdout });
     const answer = await prompt.question(`Found ${bill.length} lines in the PDF. Check these against the hospital? [y/N] `);

@@ -1,5 +1,3 @@
-import { createReadStream } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { pipeline, type Readable } from 'node:stream';
 import { parse } from 'csv-parse';
 import { extractText, getDocumentProxy } from 'unpdf';
@@ -18,9 +16,9 @@ const QTY_HEADER = /\b(QTY|UNITS|QUANTITY)\b/i;
 // Bills write amounts as "$3,250.00"; Number() needs "3250.00".
 const MONEY_MARKS = /[$,]/g;
 
-export async function readBill(filePath: string) {
+export async function readBill(input: Readable) {
     const lines = [];
-    const rows = pipeline(createReadStream(filePath), parse({ columns: true, bom: true, trim: true }), () => {});
+    const rows = pipeline(input, parse({ columns: true, bom: true, trim: true }), () => {});
 
     for await (const row of rows) {
         lines.push({ code: row.code, amount: Number(row.amount.replace(MONEY_MARKS, '')), qty: Number(row.qty) });
@@ -30,9 +28,8 @@ export async function readBill(filePath: string) {
 }
 
 // Only text PDFs: a scanned bill is a picture and gives no text.
-export async function readPdfBill(filePath: string) {
-    const bytes = await readFile(filePath);
-    const pdf = await getDocumentProxy(new Uint8Array(bytes));
+export async function readPdfBill(bytes: Uint8Array) {
+    const pdf = await getDocumentProxy(bytes);
     const { text } = await extractText(pdf, { mergePages: true });
     const billLine = QTY_HEADER.test(text) ? PDF_LINE_WITH_QTY : PDF_LINE_NO_QTY;
     const lines = [];
