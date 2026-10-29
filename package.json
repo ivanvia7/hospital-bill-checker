@@ -18,6 +18,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "camoufox": "^0.5.8",
     "csv-parse": "^7.0.3",
     "stream-json": "^3.8.0"
   }
