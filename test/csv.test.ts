@@ -91,3 +91,11 @@ test('reads one payer per row in the tall CSV', async () => {
     assert.equal(prices.filter((price) => price.payers.length > 0).length, 29);
     assert.deepEqual(prices[10].payers, []);
 });
+
+test('cleans the broken space out of NYU plan names', async () => {
+    const [wideRow] = await readCsvRows(createReadStream(WIDE_CSV)).toArray();
+    const plans = readPrice(wideRow).payers.map((payer) => payer.plan);
+
+    assert.ok(plans.includes('EMBLEM SELECT CARE PPO 3870'));
+    assert.ok(plans.every((plan) => !plan.includes('\uFFFD')));
+});

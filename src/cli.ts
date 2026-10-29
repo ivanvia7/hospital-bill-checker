@@ -7,7 +7,7 @@ import { parseArgs } from 'node:util';
 import { compareLine, findBillPrices, readBill, readPdfBill } from './bill.ts';
 import { BLOCKED_STATUS, downloadInBrowser, readTextInBrowser } from './browser.ts';
 
-const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv|bill.pdf> --hospital <domain> [--location <name>] [--payer <name and plan>]';
+const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv|bill.pdf> (--hospital <domain> [--location <name>] | --file <price file>) [--payer <name and plan>]';
 const PRICE_INDEX_FILE = 'cms-hpt.txt';
 const LOCATION_FIELD = 'location-name:';
 const FILE_FIELD = 'mrf-url:';
@@ -23,9 +23,11 @@ const { positionals, values } = parseArgs({
         hospital: { type: 'string' },
         location: { type: 'string', default: '' },
         payer: { type: 'string', default: '' },
+        file: { type: 'string' },
     },
 });
 const [command, domain] = positionals;
+const hasPriceSource = Boolean(values.hospital || values.file);
 
 // In cms-hpt.txt each location-name line comes before that location's mrf-url line.
 async function readPriceFiles(hospitalDomain: string) {
@@ -72,14 +74,12 @@ async function readBillFile(billPath: string) {
     return answer.trim().toLowerCase() === 'y' ? bill : [];
 }
 
-async function checkBill(billPath: string, hospitalDomain: string, locationName: string, payerName: string) {
-    const bill = await readBillFile(billPath);
+function readFormat(path: string) {
+    return path.toLowerCase().endsWith('.json') ? 'json' : 'csv';
+}
 
-    if (bill.length === 0) {
-        console.error('No bill lines to check');
-        return;
-    }
-
+// Downloads the price file listed for the location; falls back to a browser when the site blocks plain requests.
+async function findHospitalPrices(hospitalDomain: string, locationName: string, billCodes: Set<string>) {
     const files = await readPriceFiles(hospitalDomain);
     const file = files.find((candidate) => candidate.location.toLowerCase().includes(locationName.toLowerCase()));
 
@@ -88,25 +88,40 @@ async function checkBill(billPath: string, hospitalDomain: string, locationName:
     }
 
     console.error(`Reading ${file.location}: ${file.url}`);
-    const isJson = file.url.pathname.endsWith('.json');
-    const billCodes = new Set(bill.map((line) => line.code));
+    const format = readFormat(file.url.pathname);
     const response = await fetch(file.url);
-    let prices;
 
     if (response.ok && response.body) {
-        prices = await findBillPrices(Readable.from(response.body), isJson, billCodes);
-    } else if (response.status === BLOCKED_STATUS) {
-        console.error('Blocked by the site, downloading through a browser');
-        const filePath = await downloadInBrowser(file.url);
+        return findBillPrices(Readable.from(response.body), format, billCodes);
+    }
 
-        try {
-            prices = await findBillPrices(createReadStream(filePath), isJson, billCodes);
-        } finally {
-            await rm(dirname(filePath), { recursive: true });
-        }
-    } else {
+    if (response.status !== BLOCKED_STATUS) {
         throw new Error(`${file.url} answered ${response.status}`);
     }
+
+    console.error('Blocked by the site, downloading through a browser');
+    const filePath = await downloadInBrowser(file.url);
+
+    try {
+        return await findBillPrices(createReadStream(filePath), format, billCodes);
+    } finally {
+        await rm(dirname(filePath), { recursive: true });
+    }
+}
+
+async function checkBill(billPath: string, payerName: string, source: { file?: string; hospital?: string; location: string }) {
+    const bill = await readBillFile(billPath);
+
+    if (bill.length === 0) {
+        console.error('No bill lines to check');
+        return;
+    }
+
+    const billCodes = new Set(bill.map((line) => line.code));
+    // --file reads a price file already on disk, such as one unzipped from a hospital's .zip download.
+    const prices = source.file
+        ? await findBillPrices(createReadStream(source.file), readFormat(source.file), billCodes)
+        : await findHospitalPrices(source.hospital ?? '', source.location, billCodes);
 
     console.table(bill.map((line) => compareLine(line, prices, payerName)));
 }
@@ -115,8 +130,8 @@ if (values.version) {
     console.log(pkg.version);
 } else if (command === 'find' && domain) {
     await printPriceFiles(domain);
-} else if (command === 'check' && values.bill && values.hospital) {
-    await checkBill(values.bill, values.hospital, values.location, values.payer);
+} else if (command === 'check' && values.bill && hasPriceSource) {
+    await checkBill(values.bill, values.payer, values);
 } else {
     console.log(USAGE);
     process.exitCode = 1;

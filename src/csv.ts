@@ -4,11 +4,13 @@ import { parse } from 'csv-parse';
 const COLUMN_NAMES_LINE = 3;
 // Matches "code | 1" spacing from the CMS tall example, so it reads as NYU's "code|1".
 const SPACES_AROUND_PIPE = /\s*\|\s*/g;
+// NYU plan names carry byte 0xA0, read as U+FFFD; it and runs of spaces become one space.
+const ODD_SPACES = /[\s\uFFFD]+/g;
 // Wide files give each plan its own column: standard_charge|<payer>|<plan>|negotiated_dollar.
 const WIDE_DOLLAR_COLUMN = /^standard_charge\|(.+)\|(.+)\|negotiated_dollar$/;
 
 function cleanColumnNames(names: string[]) {
-    return names.map((name) => name.replace(SPACES_AROUND_PIPE, '|'));
+    return names.map((name) => name.replace(ODD_SPACES, ' ').replace(SPACES_AROUND_PIPE, '|'));
 }
 
 export function readCsvRows(input: Readable) {
