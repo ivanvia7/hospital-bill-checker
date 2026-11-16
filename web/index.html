@@ -4,8 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hospital-bill-checker</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap">
 <style>
+/* IBM Plex Sans, SIL Open Font License (fonts/OFL.txt), served from this site so no request leaves it */
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap;
+  src: url(fonts/ibm-plex-sans-400.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap;
+  src: url(fonts/ibm-plex-sans-600.woff2) format("woff2"); }
 /* IBM Carbon g100 dark theme colors */
 :root { --bg: #161616; --layer: #262626; --layer2: #393939; --hover: #333;
   --border: #6f6f6f; --text: #f4f4f4; --text2: #c6c6c6; --helper: #a8a8a8;
@@ -35,7 +39,8 @@ input:focus { outline: 2px solid #fff; outline-offset: -2px; }
 input::placeholder { color: #6f6f6f; }
 button { font: inherit; cursor: pointer; height: 40px; padding: 0 16px; border: 0;
   background: var(--blue); color: #fff; }
-button:hover { background: #0050e6; } button:disabled { background: #525252;
+button:hover { background: #0050e6; }
+button.secondary { background: var(--layer2); margin-left: 8px; } button.secondary:hover { background: #4c4c4c; } button:disabled { background: #525252;
   cursor: default; }
 progress { appearance: none; width: 100%; height: 8px; border: 0;
   background: var(--layer2); }
@@ -92,13 +97,14 @@ td:last-child { color: var(--error); font-weight: 600; white-space: nowrap; }
       <label>Your bill, PDF with text or CSV <input name="bill" type="file" accept=".pdf,.csv" required></label>
     </div>
     <div class="grid">
-      <label>Insurer and plan <input name="payer" placeholder="aetna or cigna ppo, optional" autocomplete="off"></label>
+      <label>Insurer and plan <input id="payer" name="payer" placeholder="aetna or cigna ppo, optional" autocomplete="off"></label>
     </div>
-    <button>Check my bill</button>
+    <button id="check">Check my bill</button>
+    <button id="sample" type="button" class="secondary">Try a sample bill</button>
   </form>
   <div class="status">
     <progress id="bar" value="0" max="1"></progress>
-    <p id="status" role="status">A 500 MB price file takes about 40 seconds.</p>
+    <p id="status" role="status">No files yet? Try a sample bill: a 5-line NYU Langone Tisch bill checked against rows cut from the hospital's own price file, Aetna plans. A full 500 MB price file takes about 40 seconds.</p>
   </div>
 </section>
 

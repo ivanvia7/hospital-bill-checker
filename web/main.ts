@@ -8,7 +8,9 @@ const form = document.querySelector('form')!;
 const status = document.querySelector('#status')!;
 const results = document.querySelector('tbody')!;
 const bar = document.querySelector('progress')!;
-const checkButton = document.querySelector('button')!;
+const checkButton = document.querySelector<HTMLButtonElement>('#check')!;
+const sampleButton = document.querySelector<HTMLButtonElement>('#sample')!;
+const payerInput = document.querySelector<HTMLInputElement>('#payer')!;
 const domainInput = document.querySelector<HTMLInputElement>('#domain')!;
 const indexLink = document.querySelector<HTMLAnchorElement>('#index-link')!;
 const indexHelp = document.querySelector<HTMLElement>('#index-help')!;
@@ -44,10 +46,7 @@ function showRow(cells: (string | number | null)[]) {
     }
 }
 
-async function checkBill() {
-    const fields = new FormData(form);
-    const billFile = fields.get('bill') as File;
-    const priceFile = fields.get('prices') as File;
+async function checkBill(billFile: File, priceFile: File, payer: string) {
     const bill = await readBillFile(billFile);
 
     if (bill.length === 0) {
@@ -60,31 +59,58 @@ async function checkBill() {
 
     results.replaceChildren();
     for (const line of bill) {
-        const result = compareLine(line, prices, String(fields.get('payer')));
+        const result = compareLine(line, prices, payer);
         showRow([result.code, result.qty, result.billed, result.hospital, result.cash, result.plan, result.flag]);
     }
     status.textContent = `Checked ${bill.length} bill lines against ${priceFile.name}.`;
 }
 
+// The sample files sit next to this page, so the browser may read them without a download.
+async function fetchSample(name: string) {
+    const response = await fetch(`sample/${name}`);
+
+    if (!response.ok) {
+        throw new Error(`Could not load the sample file ${name}.`);
+    }
+    return new File([await response.blob()], name);
+}
+
+async function runCheck(check: () => Promise<void>) {
+    checkButton.disabled = true;
+    sampleButton.disabled = true;
+
+    try {
+        await check();
+    } catch (error) {
+        status.textContent = error instanceof Error ? error.message : String(error);
+    } finally {
+        checkButton.disabled = false;
+        sampleButton.disabled = false;
+    }
+}
+
 // Most hospitals block other sites from reading cms-hpt.txt, so the patient opens it in a new tab.
 domainInput.addEventListener('input', () => {
     // Accepts "https://nyulangone.org/billing" and keeps only "nyulangone.org".
-    const domain = domainInput.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const domain = domainInput.value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
 
     indexHelp.hidden = !domain;
     indexLink.href = `https://${domain}/cms-hpt.txt`;
     indexLink.textContent = indexLink.href;
 });
 
-form.addEventListener('submit', async (event) => {
+form.addEventListener('submit', (event) => {
     event.preventDefault();
-    checkButton.disabled = true;
+    const fields = new FormData(form);
 
-    try {
-        await checkBill();
-    } catch (error) {
-        status.textContent = error instanceof Error ? error.message : String(error);
-    } finally {
-        checkButton.disabled = false;
-    }
+    runCheck(() => checkBill(fields.get('bill') as File, fields.get('prices') as File, String(fields.get('payer'))));
+});
+
+sampleButton.addEventListener('click', () => {
+    payerInput.value = 'aetna';
+    runCheck(async () => {
+        const [bill, prices] = await Promise.all([fetchSample('bill.csv'), fetchSample('nyu-tisch-prices.csv')]);
+
+        await checkBill(bill, prices, payerInput.value);
+    });
 });

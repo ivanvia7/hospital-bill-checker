@@ -3,9 +3,11 @@
 Check your hospital bill line by line against the hospital's own posted prices.
 
 **Use it in your browser:** https://ivanvia7.github.io/hospital-bill-checker/ Your files stay on your computer.
+Press "Try a sample bill" to see a result without any files.
+In the browser you download the hospital's price file yourself: hospitals do not let other sites read their files. The command line tool below finds and downloads it for you.
 
 US hospitals must post every price they charge in one public file.
-This tool finds that file, reads it, and puts each line of your bill next to the hospital's cash price and your plan's rate.
+The command line tool finds that file, reads it, and puts each line of your bill next to the hospital's cash price and your plan's rate.
 
 ```
 $ node src/cli.ts check --bill bill.csv --hospital nyulangone.org --location Tisch --payer aetna
@@ -79,7 +81,7 @@ It shows the lines it found and asks before checking them.
 Every hospital posts `cms-hpt.txt` at the root of its site, listing its price files.
 The tool reads that list, then streams the CSV or JSON price file once.
 It keeps only the rows whose codes are on your bill, so memory stays low even for files over 500 MB.
-Your bill never leaves your machine. The only network requests go to the hospital's own files.
+Your bill never leaves your machine. The command line tool only requests the hospital's own files; the web page only loads itself from GitHub Pages.
 
 Some hospital sites block plain downloads.
 The tool then fetches the file through a headless Firefox, which downloads once on first use.
