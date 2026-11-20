@@ -49,19 +49,24 @@ function readBillNumber(cell: string, column: string, line: number) {
 
 export async function readBill(input: Readable) {
     const lines = [];
-    // info gives each record's file line, which a quoted cell with a line break moves.
+    // info.lines is the file line a record ends on; a quoted cell with a line break makes it differ from the start.
     const rows = pipeline(input, parse({ columns: readBillColumns, bom: true, trim: true, info: true }), () => {});
+    // Line 1 holds the column names.
+    let lastLine = 1;
 
     for await (const { record, info } of rows) {
+        const line = lastLine + 1;
+
+        lastLine = info.lines;
         if (!record.code) {
-            throw new Error(`Bill line ${info.lines}: code is empty`);
+            throw new Error(`Bill line ${line}: code is empty`);
         }
 
         lines.push({
             // Price files write HCPCS codes in capitals: "j7121" must still find J7121.
             code: String(record.code).toUpperCase(),
-            amount: readBillNumber(record.amount, 'amount', info.lines),
-            qty: readBillNumber(record.qty, 'qty', info.lines),
+            amount: readBillNumber(record.amount, 'amount', line),
+            qty: readBillNumber(record.qty, 'qty', line),
         });
     }
 
@@ -126,9 +131,9 @@ function planName(rate: { payer: string; plan: string }) {
 
 // At NYU Tisch "aetna" matches 28 plans with a rate for the metabolic panel, from $10.56 to $325.51, so the patient picks one.
 // An exact name wins, so a plan whose name is part of a longer one can still be picked.
-// Runs of spaces count as one: "aetna  ppo" is "aetna ppo".
+// Runs of spaces count as one: "aetna  ppo" is "aetna ppo". NYU's 0xA0 byte reads as U+FFFD and counts as a space too.
 function looseName(text: string) {
-    return text.replace(/\s+/g, ' ').trim().toLowerCase();
+    return text.replace(/[\s\uFFFD]+/g, ' ').trim().toLowerCase();
 }
 
 export function findPlans(prices: Price[], payerText: string) {
@@ -149,7 +154,7 @@ export function findPlans(prices: Price[], payerText: string) {
 // plan is one full name from findPlans, or '' to compare with the cash price only.
 export function compareLine(line: { code: string; amount: number; qty: number }, prices: Price[], plan: string) {
     const matches = prices.filter((price) => price.codes.some(({ code }) => code === line.code));
-    const yourRates = matches.flatMap((price) => price.payers).filter((rate) => plan && planName(rate) === plan);
+    const yourRates = matches.flatMap((price) => price.payers).filter((rate) => plan && looseName(planName(rate)) === looseName(plan));
     const cash = highestInCents(matches.map((price) => price.cash));
     const planPrice = highestInCents(yourRates.map((rate) => rate.dollar));
     const limits = [cash, planPrice].filter((limit) => limit !== null);

@@ -89,6 +89,8 @@ test('stops at a bill cell that is not a number and names its line', async () =>
     await assert.rejects(readBillText('code,amount,qty\n,412,1\n'), { message: 'Bill line 2: code is empty' });
     // A quoted cell with a line break: the bad amount sits on file line 4.
     await assert.rejects(readBillText('code,amount,qty,note\n80053,412,1,"two\nlines"\n85025,abc,1,x\n'), { message: 'Bill line 4: amount "abc" is not a number' });
+    // The bad row itself spans lines 3 and 4; the error names the line it starts on.
+    await assert.rejects(readBillText('code,amount,qty,note\n80053,412,1,x\n85025,abc,1,"two\nlines"\n'), { message: 'Bill line 3: amount "abc" is not a number' });
 });
 
 test('stops at a bill with the same column twice', async () => {
@@ -121,4 +123,17 @@ test('picks an exact plan name even when it is part of longer names', () => {
 
     assert.deepEqual(findPlans(prices, 'acme ppo'), ['Acme PPO']);
     assert.deepEqual(findPlans(prices, 'acme'), ['Acme PPO', 'Acme PPO Plus']);
+});
+
+test('reads one plan written with different case, spaces or the 0xA0 byte as the same plan', () => {
+    const payers = [
+        { payer: 'Aetna', plan: 'PPO 1010', dollar: 26.51 },
+        { payer: 'AETNA', plan: 'ppo\uFFFD 1010', dollar: 30 },
+    ];
+    const prices = [{ codes: [{ code: '80053', type: 'CPT' }], description: '', cash: null, payers }];
+    const [plan] = findPlans(prices, 'aetna ppo 1010');
+
+    // The higher rate under the second spelling must count, or a $28 line would flag falsely.
+    assert.equal(compareLine({ code: '80053', amount: 28, qty: 1 }, prices, plan).plan, 30);
+    assert.equal(compareLine({ code: '80053', amount: 28, qty: 1 }, prices, plan).flag, '');
 });

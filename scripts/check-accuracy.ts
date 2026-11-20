@@ -153,8 +153,9 @@ const prices = await findBillPrices(createReadStream(path), format, new Set(samp
 const plans = findPlans(prices, plan);
 let wrong = 0;
 
-if (plans.length !== 1) {
-    console.log(`The tool finds ${plans.length} plans for "${plan}": ${plans.join('; ')}`);
+// The second reading matches the plan by its full name, so part of a name would compare two different things.
+if (plans.length !== 1 || !sameName(plans[0], plan)) {
+    console.log(`Pass the full name of one plan. "${plan}" matches: ${plans.join('; ') || 'none'}`);
     process.exit(1);
 }
 
