@@ -5,7 +5,7 @@ import { dirname, extname } from 'node:path';
 import { Readable } from 'node:stream';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
-import { compareLine, findBillPrices, readBill, readPdfBill } from './bill.ts';
+import { compareLine, findBillPrices, findPlans, readBill, readPdfBill } from './bill.ts';
 import { BLOCKED_STATUS, downloadInBrowser, readTextInBrowser } from './browser.ts';
 
 const USAGE = 'usage: hospital-bill-checker find <domain> | check --bill <bill.csv|bill.pdf> (--hospital <domain> [--location <name>] | --file <price file>) [--payer <name and plan>]';
@@ -33,7 +33,7 @@ const hasPriceSource = Boolean(values.hospital || values.file);
 // In cms-hpt.txt each location-name line comes before that location's mrf-url line.
 async function readPriceFiles(hospitalDomain: string) {
     const indexUrl = new URL(PRICE_INDEX_FILE, `https://${hospitalDomain}`);
-    let response;
+    let response: Response;
 
     // Node's own message for a mistyped domain is only "fetch failed".
     try {
@@ -145,12 +145,28 @@ async function checkBill(billPath: string, payerName: string, source: { file?: s
     }
 
     const billCodes = new Set(bill.map((line) => line.code));
-    // --file reads a price file already on disk, such as one unzipped from a hospital's .zip download.
     const prices = source.file
-        ? await findBillPrices(createReadStream(source.file), readFormat(source.file), billCodes)
+        ? await readPriceFile(source.file, billCodes)
         : await findHospitalPrices(source.hospital ?? '', source.location, billCodes);
+    const plans = findPlans(prices, payerName);
 
-    console.table(bill.map((line) => compareLine(line, prices, payerName)));
+    if (plans.length > 1) {
+        throw new Error(`"${payerName}" matches ${plans.length} plans in this price file. Pass yours with --payer:\n${plans.join('\n')}`);
+    }
+
+    if (payerName && plans.length === 0) {
+        console.error(`No plan in this price file matches "${payerName}", so only the cash price is compared`);
+    }
+
+    console.table(bill.map((line) => compareLine(line, prices, plans[0] ?? '')));
+}
+
+// --file reads a price file already on disk, such as one unzipped from a hospital's .zip download.
+// The format is checked before the file is opened: an open stream on a missing foo.zip would crash with a stack.
+function readPriceFile(path: string, billCodes: Set<string>) {
+    const format = readFormat(path);
+
+    return findBillPrices(createReadStream(path), format, billCodes);
 }
 
 // A wrong path, location or 404 prints one line, not a stack.

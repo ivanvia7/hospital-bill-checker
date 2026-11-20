@@ -1,19 +1,32 @@
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
-import { compareLine, findBillPrices, readBill, readPdfBill } from '../src/bill.ts';
+import { compareLine, findBillPrices, findPlans, readBill, readPdfBill } from '../src/bill.ts';
 
 const MEGABYTE = 1024 * 1024;
 
-const form = document.querySelector('form')!;
-const status = document.querySelector('#status')!;
-const results = document.querySelector('tbody')!;
-const bar = document.querySelector('progress')!;
-const checkButton = document.querySelector<HTMLButtonElement>('#check')!;
-const sampleButton = document.querySelector<HTMLButtonElement>('#sample')!;
-const payerInput = document.querySelector<HTMLInputElement>('#payer')!;
-const domainInput = document.querySelector<HTMLInputElement>('#domain')!;
-const indexLink = document.querySelector<HTMLAnchorElement>('#index-link')!;
-const indexHelp = document.querySelector<HTMLElement>('#index-help')!;
+// index.html and this file ship together, so a missing element is a build mistake worth a loud error.
+function find<T extends Element = Element>(selector: string) {
+    const element = document.querySelector<T>(selector);
+
+    if (!element) {
+        throw new Error(`index.html has no ${selector}`);
+    }
+
+    return element;
+}
+
+const form = find<HTMLFormElement>('form');
+const status = find('#status');
+const results = find<HTMLTableSectionElement>('tbody');
+const bar = find<HTMLProgressElement>('progress');
+const checkButton = find<HTMLButtonElement>('#check');
+const sampleButton = find<HTMLButtonElement>('#sample');
+const payerInput = find<HTMLInputElement>('#payer');
+const planSelect = find<HTMLSelectElement>('#plan');
+const planField = find<HTMLElement>('#plan-field');
+const domainInput = find<HTMLInputElement>('#domain');
+const indexLink = find<HTMLAnchorElement>('#index-link');
+const indexHelp = find<HTMLElement>('#index-help');
 
 // The readers parse Node-style Buffers, so each browser chunk is wrapped without a copy.
 async function* readChunks(file: File) {
@@ -46,9 +59,26 @@ function showRow(cells: (string | number | null)[]) {
     }
 }
 
+// The last check stays in memory, so picking another plan does not read the 500 MB file again.
+let checked: { bill: Awaited<ReturnType<typeof readBillFile>>; prices: Awaited<ReturnType<typeof findBillPrices>> } | undefined;
+
+function showResults(plan: string) {
+    results.replaceChildren();
+    for (const line of checked?.bill ?? []) {
+        const result = compareLine(line, checked?.prices ?? [], plan);
+        showRow([result.code, result.qty, result.billed, result.hospital, result.cash, result.plan, result.flag]);
+    }
+}
+
+function showPlanChoice(plans: string[]) {
+    planSelect.replaceChildren(new Option(`Pick your plan, ${plans.length} match`, ''), ...plans.map((plan) => new Option(plan, plan)));
+    planField.hidden = false;
+}
+
 async function checkBill(billFile: File, priceFile: File, payer: string) {
     const bill = await readBillFile(billFile);
 
+    planField.hidden = true;
     if (bill.length === 0) {
         status.textContent = 'No bill lines found. A scanned PDF has no text to read.';
         return;
@@ -56,13 +86,18 @@ async function checkBill(billFile: File, priceFile: File, payer: string) {
 
     const format = priceFile.name.toLowerCase().endsWith('.json') ? 'json' : 'csv';
     const prices = await findBillPrices(Readable.from(readChunks(priceFile)), format, new Set(bill.map((line) => line.code)));
+    const plans = findPlans(prices, payer);
 
-    results.replaceChildren();
-    for (const line of bill) {
-        const result = compareLine(line, prices, payer);
-        showRow([result.code, result.qty, result.billed, result.hospital, result.cash, result.plan, result.flag]);
+    checked = { bill, prices };
+    showResults(plans.length === 1 ? plans[0] : '');
+    status.textContent = `Checked ${bill.length} bill lines against ${priceFile.name}${plans.length === 1 ? `, plan ${plans[0]}` : ''}.`;
+
+    if (plans.length > 1) {
+        showPlanChoice(plans);
+        status.textContent += ` "${payer}" matches ${plans.length} plans that pay different rates. Pick yours to compare with its rate.`;
+    } else if (payer && plans.length === 0) {
+        status.textContent += ` No plan matches "${payer}", so only the cash price is compared.`;
     }
-    status.textContent = `Checked ${bill.length} bill lines against ${priceFile.name}.`;
 }
 
 // The sample files sit next to this page, so the browser may read them without a download.
@@ -106,8 +141,13 @@ form.addEventListener('submit', (event) => {
     runCheck(() => checkBill(fields.get('bill') as File, fields.get('prices') as File, String(fields.get('payer'))));
 });
 
+planSelect.addEventListener('change', () => {
+    showResults(planSelect.value);
+    status.textContent = planSelect.value ? `Compared with ${planSelect.value}.` : 'Compared with the cash price only.';
+});
+
 sampleButton.addEventListener('click', () => {
-    payerInput.value = 'aetna';
+    payerInput.value = 'aetna ppo';
     runCheck(async () => {
         const [bill, prices] = await Promise.all([fetchSample('bill.csv'), fetchSample('nyu-tisch-prices.csv')]);
 
