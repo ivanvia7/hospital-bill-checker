@@ -10,21 +10,21 @@ US hospitals must post every price they charge in one public file.
 The command line tool finds that file, reads it, and puts each line of your bill next to the hospital's cash price and your plan's rate.
 
 ```
-$ node src/cli.ts check --bill bill.csv --hospital nyulangone.org --location Tisch --payer aetna
+$ node src/cli.ts check --bill bill.csv --hospital nyulangone.org --location Tisch --payer "aetna ppo"
 Reading NYU Langone Tisch Hospital: https://standard-charges-prod.s3.amazonaws.com/pricing_files/133971298-1801992631_nyu-langone-tisch_standardcharges.csv
-┌─────────┬─────────┬─────┬────────┬────────────────────────────────┬─────────┬─────────┬──────────────┐
-│ (index) │ code    │ qty │ billed │ hospital                       │ cash    │ plan    │ flag         │
-├─────────┼─────────┼─────┼────────┼────────────────────────────────┼─────────┼─────────┼──────────────┤
-│ 0       │ '70551' │ 1   │ 3250   │ 'HC MRI BRAIN W/O DYE'         │ 1042.8  │ 5488.42 │ ''           │
-│ 1       │ '99285' │ 1   │ 2840.5 │ 'EMERGENCY DEPT VISIT HI MDM'  │ 1121.78 │ 5904.1  │ ''           │
-│ 2       │ '80053' │ 1   │ 412    │ 'COMPREHEN METABOLIC PANEL'    │ 12.67   │ 325.51  │ 'ABOVE BOTH' │
-│ 3       │ '85025' │ 2   │ 186.75 │ 'COMPLETE CBC W/AUTO DIFF WBC' │ 9.32    │ 138.61  │ 'ABOVE BOTH' │
-│ 4       │ '36415' │ 2   │ 45     │ 'HC ROUTINE VENIPUNCTURE'      │ 10.91   │ 45.93   │ ''           │
-└─────────┴─────────┴─────┴────────┴────────────────────────────────┴─────────┴─────────┴──────────────┘
+┌─────────┬─────────┬─────┬────────┬────────────────────────────────┬─────────┬────────┬──────────────┐
+│ (index) │ code    │ qty │ billed │ hospital                       │ cash    │ plan   │ flag         │
+├─────────┼─────────┼─────┼────────┼────────────────────────────────┼─────────┼────────┼──────────────┤
+│ 0       │ '70551' │ 1   │ 3250   │ 'HC MRI BRAIN W/O DYE'         │ 1042.8  │ 738.52 │ 'ABOVE BOTH' │
+│ 1       │ '99285' │ 1   │ 2840.5 │ 'EMERGENCY DEPT VISIT HI MDM'  │ 1121.78 │ 4659   │ ''           │
+│ 2       │ '80053' │ 1   │ 412    │ 'COMPREHEN METABOLIC PANEL'    │ 12.67   │ 26.51  │ 'ABOVE BOTH' │
+│ 3       │ '85025' │ 2   │ 186.75 │ 'COMPLETE CBC W/AUTO DIFF WBC' │ 9.32    │ 19.5   │ 'ABOVE BOTH' │
+│ 4       │ '36415' │ 2   │ 45     │ 'HC ROUTINE VENIPUNCTURE'      │ 10.91   │ 22.82  │ 'ABOVE BOTH' │
+└─────────┴─────────┴─────┴────────┴────────────────────────────────┴─────────┴────────┴──────────────┘
 ```
 
-On this sample bill the metabolic panel is billed at $412. The hospital's own file lists $12.67 cash and at most $325.51 for an Aetna plan.
-That run streamed a 482 MB price file in 40 seconds.
+On this sample bill the metabolic panel is billed at $412. The hospital's own file lists $12.67 cash and $26.51 for the Aetna PPO plan.
+That run streamed a 482 MB price file in 37 seconds.
 
 ## Quick start
 
@@ -33,8 +33,10 @@ Needs Node 22.18 or newer, which runs the TypeScript files directly.
 ```sh
 git clone https://github.com/ivanvia7/hospital-bill-checker
 cd hospital-bill-checker && npm install
-node src/cli.ts check --bill bill.pdf --hospital nyulangone.org --location Tisch
+node src/cli.ts check --bill test/fixtures/bill.pdf --hospital nyulangone.org --location Tisch --payer "aetna ppo"
 ```
+
+`test/fixtures/bill.pdf` is a made-up 6-line bill. Pass your own PDF or CSV bill the same way.
 
 More examples:
 
@@ -52,11 +54,12 @@ node src/cli.ts check --bill bill.csv --file prices.csv --payer "blue cross"
 - `--hospital <domain>` finds the price file through the hospital's site.
 - `--location <name>` picks one location when the hospital lists several. Part of the name is enough if only one location matches.
 - `--file <path>` reads a price file already on your disk instead.
-- `--payer <text>` matches your insurer and plan, such as `aetna` or `cigna ppo`. Leave it out to compare with the cash price only.
+- `--payer <text>` picks your plan, such as `aetna ppo`. One insurer has many plans that pay very different rates, so when the text matches several plans the tool lists them and stops; pass the full name of yours. Leave it out to compare with the cash price only.
 
 ## Your bill
 
-A CSV bill needs three columns. `amount` is the price of one unit.
+A CSV bill needs three columns, `code`, `amount` and `qty`, in any letter case. `amount` is the price of one unit.
+A cell that is not a number stops the check and names its line.
 
 ```csv
 code,amount,qty
@@ -71,7 +74,7 @@ It shows the lines it found and asks before checking them.
 ## What the columns mean
 
 - `cash` is the hospital's discounted cash price.
-- `plan` is the negotiated rate for plans that match `--payer`.
+- `plan` is the negotiated rate for your plan.
 - When the file lists several prices for one code, the highest one is shown. A flag never rests on a cheaper row.
 - `flag` says `ABOVE CASH`, `ABOVE PLAN` or `ABOVE BOTH` when the bill is above every price the hospital lists.
 - `not in file` means the hospital posted no price for that code.
@@ -81,16 +84,40 @@ It shows the lines it found and asks before checking them.
 Every hospital posts `cms-hpt.txt` at the root of its site, listing its price files.
 The tool reads that list, then streams the CSV or JSON price file once.
 It keeps only the rows whose codes are on your bill, so memory stays low even for files over 500 MB.
+Each `--hospital` check downloads the file again. To check several bills, save the file once and pass it with `--file`.
 Your bill never leaves your machine. The command line tool only requests the hospital's own files; the web page only loads itself from GitHub Pages.
 
 Some hospital sites block plain downloads.
 The tool then fetches the file through a headless Firefox, which downloads once on first use.
+
+## Accuracy
+
+`scripts/check-accuracy.ts` picks bill codes from a price file with a fixed seed, bills half at the list price and half at a random amount, reads the file a second way with plain csv-parse or `JSON.parse`, and lists every line where the cash price, plan rate or flag differ.
+
+| Price file | Format | Plan | Lines that match |
+|---|---|---|---|
+| NYU Langone Tisch, 482 MB | wide CSV | Aetna AETNA PPO 1010 | 80 of 80 |
+| Stanford Health Care, 165 MB | JSON | Blue Shield PPO | 80 of 80 |
+
+```sh
+node scripts/check-accuracy.ts <price file> "<full plan name>" --seed 7 --lines 80
+```
 
 ## Limits
 
 - Zip price files are not read yet. Unzip the file and pass the CSV with `--file`.
 - A plan rate shows only if the hospital lists it as a dollar amount. Some files list a percentage or a formula instead.
 - The price file is the hospital's own claim. A line below every listed price can still be a billing error.
+
+## Development
+
+```sh
+npm test
+npm run typecheck
+npm run lint
+```
+
+CI runs all three on Node 22 and 24 for every push and pull request.
 
 ## License
 
