@@ -143,8 +143,9 @@ export function findPlans(prices: Price[], payerText: string) {
         return [];
     }
 
-    const names = new Set(prices.flatMap((price) => price.payers.map(planName)));
-    const matches = [...names].filter((name) => looseName(name).includes(text)).sort();
+    // One plan written two ways is listed once, under the first spelling seen.
+    const names = new Map(prices.flatMap((price) => price.payers.map((rate) => [looseName(planName(rate)), planName(rate)] as const)).reverse());
+    const matches = [...names.values()].filter((name) => looseName(name).includes(text)).sort();
     const exact = matches.find((name) => looseName(name) === text);
 
     return exact ? [exact] : matches;

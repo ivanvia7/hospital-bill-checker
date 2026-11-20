@@ -133,6 +133,8 @@ test('reads one plan written with different case, spaces or the 0xA0 byte as the
     const prices = [{ codes: [{ code: '80053', type: 'CPT' }], description: '', cash: null, payers }];
     const [plan] = findPlans(prices, 'aetna ppo 1010');
 
+    assert.deepEqual(findPlans(prices, 'aetna ppo'), ['Aetna PPO 1010']);
+
     // The higher rate under the second spelling must count, or a $28 line would flag falsely.
     assert.equal(compareLine({ code: '80053', amount: 28, qty: 1 }, prices, plan).plan, 30);
     assert.equal(compareLine({ code: '80053', amount: 28, qty: 1 }, prices, plan).flag, '');
