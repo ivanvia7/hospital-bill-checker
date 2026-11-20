@@ -51,7 +51,9 @@ function add(listed: Map<string, Listed>, code: string, entry: Listed) {
 
 async function readCsv(path: string, plan: string) {
     const listed = new Map<string, Listed>();
-    const rows = createReadStream(path).pipe(parse({ from_line: 3, columns: true, bom: true, relax_column_count: true }));
+    // The CMS tall example writes "code | 1"; only the spacing is evened out, as files differ in it.
+    const columns = (names: string[]) => names.map((name) => name.replace(/[\s\uFFFD]+/g, ' ').replace(/\s*\|\s*/g, '|'));
+    const rows = createReadStream(path).pipe(parse({ from_line: 3, columns, bom: true, relax_column_count: true }));
 
     for await (const row of rows as AsyncIterable<Record<string, string>>) {
         const planCells = 'payer_name' in row
@@ -126,6 +128,12 @@ if (!path || !plan) {
 
 const format = extname(path).toLowerCase() === '.json' ? 'json' : 'csv';
 const listed = format === 'json' ? await readJson(path, plan) : await readCsv(path, plan);
+
+if (listed.size === 0) {
+    console.log(`The second reading found no CPT or HCPCS codes in ${path}, so there is nothing to compare`);
+    process.exit(1);
+}
+
 const random = seededRandom(Number(values.seed));
 const codes = [...listed.keys()].sort();
 const sample = [];

@@ -86,6 +86,13 @@ test('reads capitalised column names and lowercase codes', async () => {
 test('stops at a bill cell that is not a number and names its line', async () => {
     await assert.rejects(readBillText('code,amount,qty\n80053,412,1\n85025,abc,1\n'), { message: 'Bill line 3: amount "abc" is not a number' });
     await assert.rejects(readBillText('code,amount,qty\n80053,412,\n'), { message: 'Bill line 2: qty "" is not a number' });
+    await assert.rejects(readBillText('code,amount,qty\n,412,1\n'), { message: 'Bill line 2: code is empty' });
+    // A quoted cell with a line break: the bad amount sits on file line 4.
+    await assert.rejects(readBillText('code,amount,qty,note\n80053,412,1,"two\nlines"\n85025,abc,1,x\n'), { message: 'Bill line 4: amount "abc" is not a number' });
+});
+
+test('stops at a bill with the same column twice', async () => {
+    await assert.rejects(readBillText('code,Amount,amount,qty\n80053,412,5,1\n'), { message: 'The bill has the column amount more than once' });
 });
 
 test('stops at a bill without the qty column', async () => {
@@ -93,13 +100,16 @@ test('stops at a bill without the qty column', async () => {
 });
 
 test('compares with one plan, not the highest of every plan the payer text matches', async () => {
-    // NYU Tisch metabolic panel 80053: 26 Aetna plans pay $26.51, Aetna Indemnity pays the $325.51 list price.
+    // NYU Tisch metabolic panel 80053: 28 Aetna plans list a rate; 24 pay $26.51, 3 Medicare plans $10.56,
+    // and Aetna Indemnity the $325.51 list price.
     const prices = await findBillPrices(createReadStream('web/sample/nyu-tisch-prices.csv'), 'csv', new Set(['80053']));
-    const [plan] = findPlans(prices, 'aetna ppo');
+    const plan = 'Aetna AETNA PPO 1010';
     const line = compareLine({ code: '80053', amount: 300, qty: 1 }, prices, plan);
 
     assert.equal(findPlans(prices, 'aetna').length, 28);
-    assert.equal(plan, 'Aetna AETNA PPO 1010');
+    assert.deepEqual(findPlans(prices, 'aetna ppo'), [plan]);
+    assert.deepEqual(findPlans(prices, '  aetna   ppo '), [plan]);
+    assert.deepEqual(findPlans(prices, '   '), []);
     assert.deepEqual([line.cash, line.plan, line.flag], [12.67, 26.51, 'ABOVE BOTH']);
     assert.deepEqual(findPlans(prices, 'no such insurer'), []);
     assert.deepEqual(findPlans(prices, ''), []);

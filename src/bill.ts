@@ -22,9 +22,15 @@ const BILL_COLUMNS = ['code', 'amount', 'qty'];
 function readBillColumns(names: string[]) {
     const columns = names.map((name) => name.trim().toLowerCase());
     const missing = BILL_COLUMNS.filter((column) => !columns.includes(column));
+    // "Amount" next to "amount" would silently keep the last one.
+    const repeated = BILL_COLUMNS.filter((column) => columns.indexOf(column) !== columns.lastIndexOf(column));
 
     if (missing.length > 0) {
         throw new Error(`The bill needs the columns code, amount and qty; missing ${missing.join(', ')}`);
+    }
+
+    if (repeated.length > 0) {
+        throw new Error(`The bill has the column ${repeated.join(', ')} more than once`);
     }
 
     return columns;
@@ -43,17 +49,19 @@ function readBillNumber(cell: string, column: string, line: number) {
 
 export async function readBill(input: Readable) {
     const lines = [];
-    const rows = pipeline(input, parse({ columns: readBillColumns, bom: true, trim: true }), () => {});
-    // Line 1 holds the column names.
-    let line = 1;
+    // info gives each record's file line, which a quoted cell with a line break moves.
+    const rows = pipeline(input, parse({ columns: readBillColumns, bom: true, trim: true, info: true }), () => {});
 
-    for await (const row of rows) {
-        line++;
+    for await (const { record, info } of rows) {
+        if (!record.code) {
+            throw new Error(`Bill line ${info.lines}: code is empty`);
+        }
+
         lines.push({
             // Price files write HCPCS codes in capitals: "j7121" must still find J7121.
-            code: String(row.code).toUpperCase(),
-            amount: readBillNumber(row.amount, 'amount', line),
-            qty: readBillNumber(row.qty, 'qty', line),
+            code: String(record.code).toUpperCase(),
+            amount: readBillNumber(record.amount, 'amount', info.lines),
+            qty: readBillNumber(record.qty, 'qty', info.lines),
         });
     }
 
@@ -116,18 +124,23 @@ function planName(rate: { payer: string; plan: string }) {
     return `${rate.payer} ${rate.plan}`;
 }
 
-// "aetna" matches 29 NYU plans that pay from $26.51 to $325.51 for one test, so the patient picks one.
-// An exact name wins, as "Aetna AETNA PPO 1010" is also part of longer plan names.
+// At NYU Tisch "aetna" matches 28 plans with a rate for the metabolic panel, from $10.56 to $325.51, so the patient picks one.
+// An exact name wins, so a plan whose name is part of a longer one can still be picked.
+// Runs of spaces count as one: "aetna  ppo" is "aetna ppo".
+function looseName(text: string) {
+    return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 export function findPlans(prices: Price[], payerText: string) {
-    const text = payerText.trim().toLowerCase();
+    const text = looseName(payerText);
 
     if (!text) {
         return [];
     }
 
     const names = new Set(prices.flatMap((price) => price.payers.map(planName)));
-    const matches = [...names].filter((name) => name.toLowerCase().includes(text)).sort();
-    const exact = matches.find((name) => name.toLowerCase() === text);
+    const matches = [...names].filter((name) => looseName(name).includes(text)).sort();
+    const exact = matches.find((name) => looseName(name) === text);
 
     return exact ? [exact] : matches;
 }

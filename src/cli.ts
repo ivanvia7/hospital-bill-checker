@@ -154,8 +154,13 @@ async function checkBill(billPath: string, payerName: string, source: { file?: s
         throw new Error(`"${payerName}" matches ${plans.length} plans in this price file. Pass yours with --payer:\n${plans.join('\n')}`);
     }
 
-    if (payerName && plans.length === 0) {
+    if (payerName.trim() && plans.length === 0) {
         console.error(`No plan in this price file matches "${payerName}", so only the cash price is compared`);
+    }
+
+    // "geha" or "1010" picks a plan by part of its name, so the patient sees which one.
+    if (plans.length === 1) {
+        console.error(`Comparing with plan ${plans[0]}`);
     }
 
     console.table(bill.map((line) => compareLine(line, prices, plans[0] ?? '')));

@@ -13,3 +13,9 @@ test('the accuracy check agrees with the tool on a wide CSV and a JSON file', as
     assert.match(wide.stdout, /^5 of 5 lines match/m);
     assert.match(json.stdout, /^8 of 8 lines match/m);
 });
+
+test('the accuracy check reads a tall CSV with spaces around the pipes', async () => {
+    const tall = await run(process.execPath, ['scripts/check-accuracy.ts', 'test/fixtures/tall.csv', 'Platform Health Insurance PPO']);
+
+    assert.match(tall.stdout, /^(\d+) of \1 lines match/m);
+});

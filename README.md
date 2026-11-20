@@ -42,7 +42,7 @@ More examples:
 
 ```sh
 node src/cli.ts find nyulangone.org
-node src/cli.ts check --bill bill.csv --file prices.csv --payer "blue cross"
+node src/cli.ts check --bill bill.csv --file prices.csv --payer "blue cross"   # lists the Blue Cross plans, then pass yours
 ```
 
 ## Commands

@@ -76,9 +76,13 @@ function showPlanChoice(plans: string[]) {
 }
 
 async function checkBill(billFile: File, priceFile: File, payer: string) {
+    // A failed check must not leave the last file's rows or plan picker on screen.
+    planField.hidden = true;
+    checked = undefined;
+    results.replaceChildren();
+
     const bill = await readBillFile(billFile);
 
-    planField.hidden = true;
     if (bill.length === 0) {
         status.textContent = 'No bill lines found. A scanned PDF has no text to read.';
         return;
@@ -95,7 +99,7 @@ async function checkBill(billFile: File, priceFile: File, payer: string) {
     if (plans.length > 1) {
         showPlanChoice(plans);
         status.textContent += ` "${payer}" matches ${plans.length} plans that pay different rates. Pick yours to compare with its rate.`;
-    } else if (payer && plans.length === 0) {
+    } else if (payer.trim() && plans.length === 0) {
         status.textContent += ` No plan matches "${payer}", so only the cash price is compared.`;
     }
 }
