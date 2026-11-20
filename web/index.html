@@ -15,6 +15,7 @@
   --border: #6f6f6f; --text: #f4f4f4; --text2: #c6c6c6; --helper: #a8a8a8;
   --link: #78a9ff; --blue: #0f62fe; --error: #fa4d56; }
 * { box-sizing: border-box; }
+[hidden] { display: none; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 400 14px/20px "IBM Plex Sans", system-ui, sans-serif; letter-spacing: .16px; }
 main { max-width: 960px; margin: 0 auto; padding: 48px 32px; }
@@ -35,7 +36,10 @@ input { display: block; width: 100%; margin-top: 8px; height: 40px; padding: 0 1
   font: inherit; color: var(--text); background: var(--layer2); border: 0;
   border-bottom: 1px solid var(--border); }
 input[type=file] { padding: 10px 16px 0; }
-input:focus { outline: 2px solid #fff; outline-offset: -2px; }
+select { display: block; width: 100%; margin-top: 8px; height: 40px; padding: 0 16px;
+  font: inherit; color: var(--text); background: var(--layer2); border: 0;
+  border-bottom: 1px solid var(--border); }
+input:focus, select:focus { outline: 2px solid #fff; outline-offset: -2px; }
 input::placeholder { color: #6f6f6f; }
 button { font: inherit; cursor: pointer; height: 40px; padding: 0 16px; border: 0;
   background: var(--blue); color: #fff; }
@@ -98,13 +102,14 @@ td:last-child { color: var(--error); font-weight: 600; white-space: nowrap; }
     </div>
     <div class="grid">
       <label>Insurer and plan <input id="payer" name="payer" placeholder="aetna or cigna ppo, optional" autocomplete="off"></label>
+      <label id="plan-field" hidden>Your plan <select id="plan"></select></label>
     </div>
     <button id="check">Check my bill</button>
     <button id="sample" type="button" class="secondary">Try a sample bill</button>
   </form>
   <div class="status">
     <progress id="bar" value="0" max="1"></progress>
-    <p id="status" role="status">No files yet? Try a sample bill: a 5-line NYU Langone Tisch bill checked against rows cut from the hospital's own price file, Aetna plans. A full 500 MB price file takes about 40 seconds.</p>
+    <p id="status" role="status">No files yet? Try a sample bill: a 5-line NYU Langone Tisch bill checked against rows cut from the hospital's own price file, Aetna PPO plan. A full 500 MB price file takes about 40 seconds.</p>
   </div>
 </section>
 
@@ -116,7 +121,7 @@ td:last-child { color: var(--error); font-weight: 600; white-space: nowrap; }
     </tr></thead>
     <tbody></tbody>
   </table>
-  <small class="note">Cash and Plan show the highest price the hospital lists for that code.
+  <small class="note">Cash and Plan show the highest price the hospital lists for that code, Plan for your plan only.
     A flag means the bill is above every listed price.</small>
 </section>
 </main>

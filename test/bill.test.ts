@@ -2,7 +2,8 @@ import { createReadStream } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compareLine, findBillPrices, readBill, readPdfBill } from '../src/bill.ts';
+import { Readable } from 'node:stream';
+import { compareLine, findBillPrices, findPlans, readBill, readPdfBill } from '../src/bill.ts';
 
 // bill.csv = a made-up 5-line bill: brain MRI, ER visit, metabolic panel, blood count, blood draw.
 const BILL_CSV = 'test/fixtures/bill.csv';
@@ -64,12 +65,77 @@ test('reads a UNITS header as the quantity column and skips 0-unit lines', async
 test('flags a line billed above both the cash price and the plan rate', async () => {
     // Tall MRI rows: cash $1,080, Platform PPO $400, Region HMO $250.
     const prices = await findBillPrices(createReadStream('test/fixtures/tall.csv'), 'csv', new Set(['70551']));
-    const overcharged = compareLine({ code: '70551', amount: 3250, qty: 1 }, prices, 'platform');
-    const fair = compareLine({ code: '70551', amount: 900, qty: 1 }, prices, 'platform');
+    const overcharged = compareLine({ code: '70551', amount: 3250, qty: 1 }, prices, 'Platform Health Insurance PPO');
+    const fair = compareLine({ code: '70551', amount: 900, qty: 1 }, prices, 'Platform Health Insurance PPO');
 
     assert.deepEqual([overcharged.cash, overcharged.plan, overcharged.flag], [1080, 400, 'ABOVE BOTH']);
     assert.equal(fair.flag, '');
     // Prices round to cents: a listed 1042.7998 must print as 1042.8.
     assert.equal(compareLine({ code: '70551', amount: 1, qty: 1 }, [{ ...prices[0], cash: 1042.7998 }], '').cash, 1042.8);
-    assert.equal(compareLine({ code: '70551', amount: 3250, qty: 1 }, prices, 'region').plan, 250);
+    assert.equal(compareLine({ code: '70551', amount: 3250, qty: 1 }, prices, 'Region Health Insurance HMO').plan, 250);
+});
+
+function readBillText(text: string) {
+    return readBill(Readable.from([text]));
+}
+
+test('reads capitalised column names and lowercase codes', async () => {
+    assert.deepEqual(await readBillText('Code,Amount,QTY\nj7121,$63.00,1\n'), [{ code: 'J7121', amount: 63, qty: 1 }]);
+});
+
+test('stops at a bill cell that is not a number and names its line', async () => {
+    await assert.rejects(readBillText('code,amount,qty\n80053,412,1\n85025,abc,1\n'), { message: 'Bill line 3: amount "abc" is not a number' });
+    await assert.rejects(readBillText('code,amount,qty\n80053,412,\n'), { message: 'Bill line 2: qty "" is not a number' });
+    await assert.rejects(readBillText('code,amount,qty\n,412,1\n'), { message: 'Bill line 2: code is empty' });
+    // A quoted cell with a line break: the bad amount sits on file line 4.
+    await assert.rejects(readBillText('code,amount,qty,note\n80053,412,1,"two\nlines"\n85025,abc,1,x\n'), { message: 'Bill line 4: amount "abc" is not a number' });
+    // The bad row itself spans lines 3 and 4; the error names the line it starts on.
+    await assert.rejects(readBillText('code,amount,qty,note\n80053,412,1,x\n85025,abc,1,"two\nlines"\n'), { message: 'Bill line 3: amount "abc" is not a number' });
+});
+
+test('stops at a bill with the same column twice', async () => {
+    await assert.rejects(readBillText('code,Amount,amount,qty\n80053,412,5,1\n'), { message: 'The bill has the column amount more than once' });
+});
+
+test('stops at a bill without the qty column', async () => {
+    await assert.rejects(readBillText('code,amount\n80053,412\n'), { message: 'The bill needs the columns code, amount and qty; missing qty' });
+});
+
+test('compares with one plan, not the highest of every plan the payer text matches', async () => {
+    // NYU Tisch metabolic panel 80053: 28 Aetna plans list a rate; 24 pay $26.51, 3 Medicare plans $10.56,
+    // and Aetna Indemnity the $325.51 list price.
+    const prices = await findBillPrices(createReadStream('web/sample/nyu-tisch-prices.csv'), 'csv', new Set(['80053']));
+    const plan = 'Aetna AETNA PPO 1010';
+    const line = compareLine({ code: '80053', amount: 300, qty: 1 }, prices, plan);
+
+    assert.equal(findPlans(prices, 'aetna').length, 28);
+    assert.deepEqual(findPlans(prices, 'aetna ppo'), [plan]);
+    assert.deepEqual(findPlans(prices, '  aetna   ppo '), [plan]);
+    assert.deepEqual(findPlans(prices, '   '), []);
+    assert.deepEqual([line.cash, line.plan, line.flag], [12.67, 26.51, 'ABOVE BOTH']);
+    assert.deepEqual(findPlans(prices, 'no such insurer'), []);
+    assert.deepEqual(findPlans(prices, ''), []);
+});
+
+test('picks an exact plan name even when it is part of longer names', () => {
+    const payers = [{ payer: 'Acme', plan: 'PPO', dollar: 1 }, { payer: 'Acme', plan: 'PPO Plus', dollar: 2 }];
+    const prices = [{ codes: [{ code: '80053', type: 'CPT' }], description: '', cash: null, payers }];
+
+    assert.deepEqual(findPlans(prices, 'acme ppo'), ['Acme PPO']);
+    assert.deepEqual(findPlans(prices, 'acme'), ['Acme PPO', 'Acme PPO Plus']);
+});
+
+test('reads one plan written with different case, spaces or the 0xA0 byte as the same plan', () => {
+    const payers = [
+        { payer: 'Aetna', plan: 'PPO 1010', dollar: 26.51 },
+        { payer: 'AETNA', plan: 'ppo\uFFFD 1010', dollar: 30 },
+    ];
+    const prices = [{ codes: [{ code: '80053', type: 'CPT' }], description: '', cash: null, payers }];
+    const [plan] = findPlans(prices, 'aetna ppo 1010');
+
+    assert.deepEqual(findPlans(prices, 'aetna ppo'), ['Aetna PPO 1010']);
+
+    // The higher rate under the second spelling must count, or a $28 line would flag falsely.
+    assert.equal(compareLine({ code: '80053', amount: 28, qty: 1 }, prices, plan).plan, 30);
+    assert.equal(compareLine({ code: '80053', amount: 28, qty: 1 }, prices, plan).flag, '');
 });

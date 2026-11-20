@@ -31,3 +31,37 @@ test('names the domain when the hospital website cannot be reached', async () =>
         stderr: "Could not reach no-such-hospital.invalid. Check the spelling of the hospital's website\n",
     });
 });
+
+test('prints one line, not a stack, for a missing price file with the wrong extension', async () => {
+    await assert.rejects(check('--bill', 'test/fixtures/bill.csv', '--file', 'test/fixtures/missing.zip'), {
+        code: 1,
+        stderr: 'test/fixtures/missing.zip: expected a .csv or .json price file\n',
+    });
+});
+
+test('lists the plans and exits 1 when the payer text matches several', async () => {
+    await assert.rejects(check('--bill', 'test/fixtures/bill.csv', '--file', 'test/fixtures/tall.csv', '--payer', 'health'), {
+        code: 1,
+        stderr: '"health" matches 2 plans in this price file. Pass yours with --payer:\nPlatform Health Insurance PPO\nRegion Health Insurance HMO\n',
+    });
+});
+
+test('prints one line for a missing CSV price file', async () => {
+    await assert.rejects(check('--bill', 'test/fixtures/bill.csv', '--file', 'test/fixtures/missing.csv'), {
+        code: 1,
+        stderr: "ENOENT: no such file or directory, open 'test/fixtures/missing.csv'\n",
+    });
+});
+
+test('names the plan it compares with when part of a name picked it', async () => {
+    const { stderr } = await check('--bill', 'test/fixtures/bill.csv', '--file', 'test/fixtures/tall.csv', '--payer', 'platform');
+
+    assert.equal(stderr, 'Comparing with plan Platform Health Insurance PPO\n');
+});
+
+test('says so when no plan matches the payer text', async () => {
+    const { stderr, stdout } = await check('--bill', 'test/fixtures/bill.csv', '--file', 'test/fixtures/tall.csv', '--payer', 'aetnna');
+
+    assert.equal(stderr, 'No plan in this price file matches "aetnna", so only the cash price is compared\n');
+    assert.match(stdout, /ABOVE CASH/);
+});
