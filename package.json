@@ -12,6 +12,8 @@
     "build": "tsc -p tsconfig.build.json",
     "build:web": "esbuild web/main.ts --bundle --format=esm --platform=browser --outfile=web/main.js --alias:node:stream=readable-stream --alias:stream=readable-stream --alias:node:buffer=buffer --alias:node:string_decoder=string_decoder --define:global=globalThis --inject:web/node-globals.js",
     "prepack": "npm run build",
+    "lint": "biome lint src test web/main.ts scripts",
+    "typecheck": "tsc --noEmit",
     "test": "node --test 'test/**/*.test.ts'"
   },
   "keywords": [],
@@ -22,6 +24,7 @@
     "node": ">=22.18"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
     "@types/node": "^22.20.5",
     "esbuild": "^0.28.2",
     "readable-stream": "^4.8.0",

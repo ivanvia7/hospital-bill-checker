@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "lib": ["es2023", "dom", "dom.iterable"]
   },
-  "include": ["src", "test", "web"]
+  "include": ["src", "test", "web", "scripts"]
 }
